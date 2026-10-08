@@ -29,43 +29,11 @@ func main() {
 		}
 
 		for _, post := range telegramResponse.Result {
-			fmt.Printf("Caption: %s \n", post.ChannelPost.Caption)
-			fmt.Printf("Count variant photo: %d \n", len(post.ChannelPost.Photo))
-			for index, photo := range post.ChannelPost.Photo {
-				fmt.Printf("#%d \n", index+1)
-				fmt.Printf("Width: %d \n", photo.Width)
-				fmt.Printf("Height: %d \n", photo.Height)
+			errorProcess := processUpdate(&client, post)
+			if errorProcess != nil {
+				fmt.Println("Process update error:", errorProcess)
+				break
 			}
-
-			if len(post.ChannelPost.Photo) > 0 {
-				file, errorGetFile := client.getFile(post.ChannelPost.Photo[len(post.ChannelPost.Photo)-1].FileID)
-				if errorGetFile != nil {
-					fmt.Println("Error getting file:", errorGetFile)
-					break
-				}
-
-				fileName := file.Result.FileUniqueID + ".jpg"
-
-				newFile, errorCreate := os.Create(fileName)
-				if errorCreate != nil {
-					fmt.Println("Error create file:", errorCreate)
-					break
-				}
-
-				downloadError := client.downloadTelegramFile(file.Result, newFile)
-				closeError := newFile.Close()
-
-				if downloadError != nil {
-					fmt.Println("Error downloading file:", downloadError)
-					break
-				}
-
-				if closeError != nil {
-					fmt.Println("Error closing file:", closeError)
-					break
-				}
-			}
-			fmt.Println()
 			offset = post.UpdateID + 1
 		}
 

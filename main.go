@@ -1,65 +1,70 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"strconv"
-	"time"
+	"os"
 )
-
-const TOKEN string = "8611116635:AAH9EnppPONEAZvGTQTqPz1JY509CJu7GSM"
-
-type ChannelPost struct {
-	MessageId int    `json:"message_id"`
-	Text      string `json:"text"`
-}
-
-type Update struct {
-	UpdateID    int         `json:"update_id"`
-	ChannelPost ChannelPost `json:"channel_post"`
-}
-
-type TelegramResponse struct {
-	Ok     bool     `json:"ok"`
-	Result []Update `json:"result"`
-}
 
 func main() {
 	offset := 0
 
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+
+	if token == "" {
+		fmt.Println("Укажите переменную token")
+		return
+	}
+
+	client := TelegramClient{
+		token: token,
+	}
+
 	for {
-		start := time.Now()
-		url := "https://api.telegram.org/bot" + TOKEN + "/getUpdates" + "?offset=" + strconv.Itoa(offset) + "&timeout=30"
-		response, err := http.Get(url)
-		fmt.Println("Request took:", time.Since(start))
+
+		telegramResponse, err := client.getUpdates(offset)
 
 		if err != nil {
-			fmt.Println("Request error:", err)
-			return
-		}
-
-		body, err := io.ReadAll(response.Body)
-
-		response.Body.Close()
-
-		if err != nil {
-			fmt.Println("Read error:", err)
-			return
-		}
-
-		var telegramResponse TelegramResponse
-		err = json.Unmarshal(body, &telegramResponse)
-
-		if err != nil {
-			fmt.Println("JSON error:", err)
+			fmt.Println("Telegram request error:", err)
 			return
 		}
 
 		for _, post := range telegramResponse.Result {
-			fmt.Printf("Update ID: %d \n", post.UpdateID)
-			fmt.Printf("Text: %s \n", post.ChannelPost.Text)
+			fmt.Printf("Caption: %s \n", post.ChannelPost.Caption)
+			fmt.Printf("Count variant photo: %d \n", len(post.ChannelPost.Photo))
+			for index, photo := range post.ChannelPost.Photo {
+				fmt.Printf("#%d \n", index+1)
+				fmt.Printf("Width: %d \n", photo.Width)
+				fmt.Printf("Height: %d \n", photo.Height)
+			}
+
+			if len(post.ChannelPost.Photo) > 0 {
+				file, errorGetFile := client.getFile(post.ChannelPost.Photo[len(post.ChannelPost.Photo)-1].FileID)
+				if errorGetFile != nil {
+					fmt.Println("Error getting file:", errorGetFile)
+					break
+				}
+
+				fileName := file.Result.FileUniqueID + ".jpg"
+
+				newFile, errorCreate := os.Create(fileName)
+				if errorCreate != nil {
+					fmt.Println("Error create file:", errorCreate)
+					break
+				}
+
+				downloadError := client.downloadTelegramFile(file.Result, newFile)
+				closeError := newFile.Close()
+
+				if downloadError != nil {
+					fmt.Println("Error downloading file:", downloadError)
+					break
+				}
+
+				if closeError != nil {
+					fmt.Println("Error closing file:", closeError)
+					break
+				}
+			}
 			fmt.Println()
 			offset = post.UpdateID + 1
 		}

@@ -21,6 +21,7 @@ func main() {
 
 	for {
 
+		handleError := false
 		telegramResponse, err := client.getUpdates(offset)
 
 		if err != nil {
@@ -28,17 +29,27 @@ func main() {
 			return
 		}
 
+		telegramPosts := groupUpdates(telegramResponse.Result)
+		candidateOffset := offset
+
 		for _, post := range telegramResponse.Result {
-			errorProcess := processUpdate(&client, post)
-			if errorProcess != nil {
-				fmt.Println("Process update error:", errorProcess)
-				break
+			if post.UpdateID+1 > candidateOffset {
+				candidateOffset = post.UpdateID + 1
 			}
-			offset = post.UpdateID + 1
 		}
 
-		telegramPosts := processPost(telegramResponse.Result)
-		fmt.Println(telegramPosts)
+		for _, post := range telegramPosts {
+			errorProcess := processPost(&client, post)
+			if errorProcess != nil {
+				fmt.Println("Process post error:", errorProcess)
+				handleError = true
+				break
+			}
+		}
+
+		if !handleError {
+			offset = candidateOffset
+		}
 
 		if len(telegramResponse.Result) == 0 {
 			fmt.Println("No new posts")

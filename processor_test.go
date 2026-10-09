@@ -15,7 +15,7 @@ func TestProcessPostSingleTextUpdate(t *testing.T) {
 		},
 	}
 
-	posts := processPost(updates)
+	posts := groupUpdates(updates)
 
 	if len(posts) != 1 {
 		t.Fatalf("expected 1 post, got %d", len(posts))
@@ -104,7 +104,7 @@ func TestProcessPostGroupsAlbum(t *testing.T) {
 		},
 	}
 
-	posts := processPost(updates)
+	posts := groupUpdates(updates)
 
 	if len(posts) != 1 {
 		t.Fatalf("expected 1 post, got %d", len(posts))
@@ -183,7 +183,7 @@ func TestProcessPostPreservesMixedPostOrder(t *testing.T) {
 		},
 	}
 
-	posts := processPost(updates)
+	posts := groupUpdates(updates)
 
 	if len(posts) != 3 {
 		t.Fatalf("expected 3 posts, got %d", len(posts))

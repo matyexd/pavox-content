@@ -6,17 +6,16 @@ import (
 	"strconv"
 )
 
-func processUpdate(client *TelegramClient, post Update) error {
-	fmt.Printf("Caption: %s \n", post.ChannelPost.Caption)
-	fmt.Printf("Count variant photo: %d \n", len(post.ChannelPost.Photo))
-	for index, photo := range post.ChannelPost.Photo {
+func processPost(client *TelegramClient, post TelegramPost) error {
+	fmt.Printf("Caption: %s \n", post.Caption)
+	fmt.Printf("Text: %s \n", post.Text)
+	fmt.Printf("Count photos: %d \n", len(post.Photos))
+	for index, photo := range post.Photos {
 		fmt.Printf("#%d \n", index+1)
 		fmt.Printf("Width: %d \n", photo.Width)
 		fmt.Printf("Height: %d \n", photo.Height)
-	}
 
-	if len(post.ChannelPost.Photo) > 0 {
-		file, errorGetFile := client.getFile(post.ChannelPost.Photo[len(post.ChannelPost.Photo)-1].FileID)
+		file, errorGetFile := client.getFile(photo.FileID)
 		if errorGetFile != nil {
 			return fmt.Errorf("get file: %w", errorGetFile)
 		}
@@ -43,7 +42,7 @@ func processUpdate(client *TelegramClient, post Update) error {
 	return nil
 }
 
-func processPost(updates []Update) []TelegramPost {
+func groupUpdates(updates []Update) []TelegramPost {
 	posts := make(map[string][]Update)
 	order := make([]string, 0)
 

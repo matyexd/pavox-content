@@ -19,9 +19,15 @@ func main() {
 		token: token,
 	}
 
-	for {
+	downloadDir := "downloads"
 
-		handleError := false
+	errCreateDir := os.MkdirAll(downloadDir, 0750)
+	if errCreateDir != nil {
+		fmt.Printf("error create dir: %s", errCreateDir)
+		return
+	}
+
+	for {
 		telegramResponse, err := client.getUpdates(offset)
 
 		if err != nil {
@@ -29,30 +35,42 @@ func main() {
 			return
 		}
 
-		telegramPosts := groupUpdates(telegramResponse.Result)
-		candidateOffset := offset
-
-		for _, post := range telegramResponse.Result {
-			if post.UpdateID+1 > candidateOffset {
-				candidateOffset = post.UpdateID + 1
-			}
-		}
-
-		for _, post := range telegramPosts {
-			errorProcess := processPost(&client, post)
-			if errorProcess != nil {
-				fmt.Println("Process post error:", errorProcess)
-				handleError = true
-				break
-			}
-		}
-
-		if !handleError {
-			offset = candidateOffset
+		nextOffset, processError := processUpdateBatch(
+			telegramResponse.Result,
+			offset,
+			func(post TelegramPost) error {
+				return processPost(&client, post, downloadDir)
+			},
+		)
+		if processError != nil {
+			fmt.Println("Process post error:", processError)
+		} else {
+			offset = nextOffset
 		}
 
 		if len(telegramResponse.Result) == 0 {
 			fmt.Println("No new posts")
 		}
 	}
+}
+
+func processUpdateBatch(
+	updates []Update,
+	currentOffset int,
+	process func(TelegramPost) error,
+) (int, error) {
+	candidateOffset := currentOffset
+	for _, update := range updates {
+		if update.UpdateID+1 > candidateOffset {
+			candidateOffset = update.UpdateID + 1
+		}
+	}
+
+	for _, post := range groupUpdates(updates) {
+		if err := process(post); err != nil {
+			return currentOffset, fmt.Errorf("process post: %w", err)
+		}
+	}
+
+	return candidateOffset, nil
 }

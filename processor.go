@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
-func processPost(client *TelegramClient, post TelegramPost) error {
+func processPost(client *TelegramClient, post TelegramPost, downloadDir string) error {
 	fmt.Printf("Caption: %s \n", post.Caption)
 	fmt.Printf("Text: %s \n", post.Text)
 	fmt.Printf("Count photos: %d \n", len(post.Photos))
@@ -21,8 +22,9 @@ func processPost(client *TelegramClient, post TelegramPost) error {
 		}
 
 		fileName := file.Result.FileUniqueID + ".jpg"
+		fileWithDir := filepath.Join(downloadDir, fileName)
 
-		newFile, errorCreate := os.Create(fileName)
+		newFile, errorCreate := os.Create(fileWithDir)
 		if errorCreate != nil {
 			return fmt.Errorf("create file: %w", errorCreate)
 		}

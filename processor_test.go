@@ -1,9 +1,65 @@
 package main
 
 import (
+	"errors"
 	"slices"
 	"testing"
 )
+
+func TestGroupUpdatesEmptyInput(t *testing.T) {
+	posts := groupUpdates(nil)
+
+	if len(posts) != 0 {
+		t.Fatalf("expected no posts, got %d", len(posts))
+	}
+}
+
+func TestProcessUpdateBatchAdvancesOffsetAfterSuccess(t *testing.T) {
+	updates := []Update{
+		{UpdateID: 105, ChannelPost: ChannelPost{Text: "Первый пост"}},
+		{UpdateID: 103, ChannelPost: ChannelPost{Text: "Второй пост"}},
+	}
+	processedPosts := 0
+
+	nextOffset, err := processUpdateBatch(updates, 100, func(post TelegramPost) error {
+		processedPosts++
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if processedPosts != 2 {
+		t.Errorf("expected 2 processed posts, got %d", processedPosts)
+	}
+	if nextOffset != 106 {
+		t.Errorf("expected next offset 106, got %d", nextOffset)
+	}
+}
+
+func TestProcessUpdateBatchPreservesOffsetAfterError(t *testing.T) {
+	updates := []Update{
+		{UpdateID: 200, ChannelPost: ChannelPost{Text: "Первый пост"}},
+		{UpdateID: 201, ChannelPost: ChannelPost{Text: "Второй пост"}},
+	}
+	expectedError := errors.New("processing failed")
+	processedPosts := 0
+
+	nextOffset, err := processUpdateBatch(updates, 150, func(post TelegramPost) error {
+		processedPosts++
+		if processedPosts == 2 {
+			return expectedError
+		}
+		return nil
+	})
+
+	if !errors.Is(err, expectedError) {
+		t.Fatalf("expected processing error, got %v", err)
+	}
+	if nextOffset != 150 {
+		t.Errorf("expected offset to remain 150, got %d", nextOffset)
+	}
+}
 
 func TestProcessPostSingleTextUpdate(t *testing.T) {
 	updates := []Update{

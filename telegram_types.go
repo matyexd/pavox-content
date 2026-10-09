@@ -38,3 +38,11 @@ type TelegramResponse[T any] struct {
 	Description string `json:"description"`
 	ErrorCode   int    `json:"error_code"`
 }
+
+type TelegramPost struct {
+	Caption      string
+	MediaGroupID string
+	Photos       []PhotoSize
+	UpdateIDs    []int
+	Text         string
+}

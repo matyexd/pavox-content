@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 func processUpdate(client *TelegramClient, post Update) error {
@@ -40,4 +41,57 @@ func processUpdate(client *TelegramClient, post Update) error {
 	}
 
 	return nil
+}
+
+func processPost(updates []Update) []TelegramPost {
+	posts := make(map[string][]Update)
+	order := make([]string, 0)
+
+	telegramPosts := make([]TelegramPost, 0)
+
+	for _, post := range updates {
+		var key string
+		if post.ChannelPost.MediaGroupID == "" {
+			key = "single:" + strconv.Itoa(post.UpdateID)
+		} else {
+			key = post.ChannelPost.MediaGroupID
+		}
+
+		if _, exists := posts[key]; !exists {
+			order = append(order, key)
+		}
+
+		posts[key] = append(posts[key], post)
+	}
+
+	for _, key := range order {
+		var telegramPost TelegramPost
+		groupPosts := posts[key]
+		telegramPost.MediaGroupID = groupPosts[0].ChannelPost.MediaGroupID
+
+		for _, post := range groupPosts {
+			if len(post.ChannelPost.Photo) > 0 {
+				telegramPost.Photos = append(telegramPost.Photos, post.ChannelPost.Photo[len(post.ChannelPost.Photo)-1])
+			}
+			telegramPost.UpdateIDs = append(telegramPost.UpdateIDs, post.UpdateID)
+		}
+
+		for _, group := range groupPosts {
+			if group.ChannelPost.Caption != "" {
+				telegramPost.Caption = group.ChannelPost.Caption
+				break
+			}
+		}
+
+		for _, group := range groupPosts {
+			if group.ChannelPost.Text != "" {
+				telegramPost.Text = group.ChannelPost.Text
+				break
+			}
+		}
+
+		telegramPosts = append(telegramPosts, telegramPost)
+	}
+
+	return telegramPosts
 }

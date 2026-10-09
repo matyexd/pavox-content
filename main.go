@@ -37,6 +37,9 @@ func main() {
 			offset = post.UpdateID + 1
 		}
 
+		telegramPosts := processPost(telegramResponse.Result)
+		fmt.Println(telegramPosts)
+
 		if len(telegramResponse.Result) == 0 {
 			fmt.Println("No new posts")
 		}

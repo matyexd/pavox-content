@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -278,5 +281,67 @@ func TestProcessPostPreservesMixedPostOrder(t *testing.T) {
 	}
 	if !slices.Equal(posts[2].UpdateIDs, []int{303}) {
 		t.Errorf("expected last post update IDs [303], got %v", posts[2].UpdateIDs)
+	}
+}
+
+type fakeTelegramFileClient struct {
+	file    TelegramFile
+	content []byte
+}
+
+func (fake fakeTelegramFileClient) getFile(
+	fileID string,
+) (TelegramResponse[TelegramFile], error) {
+	response := TelegramResponse[TelegramFile]{
+		OK:     true,
+		Result: fake.file,
+	}
+
+	return response, nil
+}
+
+func (fake fakeTelegramFileClient) downloadTelegramFile(
+	file TelegramFile,
+	newFile io.Writer,
+) error {
+	_, err := newFile.Write(fake.content)
+	return err
+}
+
+func TestProcessPostDownloadsPhoto(t *testing.T) {
+	downloadDir := t.TempDir()
+
+	fake := fakeTelegramFileClient{
+		file: TelegramFile{
+			FileUniqueID: "photo-123",
+		},
+		content: []byte("fake image content"),
+	}
+
+	post := TelegramPost{
+		Photos: []PhotoSize{
+			{FileID: "telegram-file-id"},
+		},
+	}
+
+	err := processPost(fake, post, downloadDir)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	filePath := filepath.Join(downloadDir, "photo-123.jpg")
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read downloaded file: %v", err)
+	}
+
+	expectedContent := "fake image content"
+	if string(content) != expectedContent {
+		t.Errorf(
+			"expected file content %q, got %q",
+			expectedContent,
+			string(content),
+		)
 	}
 }

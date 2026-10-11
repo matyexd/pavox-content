@@ -2,12 +2,18 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 )
 
-func processPost(client *TelegramClient, post TelegramPost, downloadDir string) error {
+type TelegramFileClient interface {
+	getFile(fileID string) (TelegramResponse[TelegramFile], error)
+	downloadTelegramFile(file TelegramFile, newFile io.Writer) error
+}
+
+func processPost(client TelegramFileClient, post TelegramPost, downloadDir string) error {
 	fmt.Printf("Caption: %s \n", post.Caption)
 	fmt.Printf("Text: %s \n", post.Text)
 	fmt.Printf("Count photos: %d \n", len(post.Photos))

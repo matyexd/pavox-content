@@ -5,8 +5,8 @@ func productExtractionSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"name": map[string]any{
-				"type":        "string",
-				"description": "Product name extracted from the source post.",
+				"type":        []string{"string", "null"},
+				"description": "Product name, or null when the publication does not describe a specific product.",
 			},
 			"description": map[string]any{
 				"type":        []string{"string", "null"},
@@ -33,6 +33,7 @@ func productExtractionSchema() map[string]any {
 				"description": "Category slugs selected from the allowed categories supplied in the prompt.",
 				"items": map[string]any{
 					"type": "string",
+					"enum": productCategorySlugs(),
 				},
 			},
 		},

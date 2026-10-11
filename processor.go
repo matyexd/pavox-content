@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 type TelegramFileClient interface {
@@ -17,6 +19,25 @@ func processPost(client TelegramFileClient, post TelegramPost, downloadDir strin
 	fmt.Printf("Caption: %s \n", post.Caption)
 	fmt.Printf("Text: %s \n", post.Text)
 	fmt.Printf("Count photos: %d \n", len(post.Photos))
+
+	postDir := filepath.Join(
+		downloadDir,
+		time.Now().Format("2006-01-02_15-04-05.000000000"),
+	)
+	if err := os.MkdirAll(postDir, 0750); err != nil {
+		return fmt.Errorf("create post directory: %w", err)
+	}
+
+	postJSON, err := json.MarshalIndent(post, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal post: %w", err)
+	}
+
+	postFilePath := filepath.Join(postDir, "post.json")
+	if err := os.WriteFile(postFilePath, postJSON, 0640); err != nil {
+		return fmt.Errorf("write post JSON: %w", err)
+	}
+
 	for index, photo := range post.Photos {
 		fmt.Printf("#%d \n", index+1)
 		fmt.Printf("Width: %d \n", photo.Width)
@@ -28,7 +49,7 @@ func processPost(client TelegramFileClient, post TelegramPost, downloadDir strin
 		}
 
 		fileName := file.Result.FileUniqueID + ".jpg"
-		fileWithDir := filepath.Join(downloadDir, fileName)
+		fileWithDir := filepath.Join(postDir, fileName)
 
 		newFile, errorCreate := os.Create(fileWithDir)
 		if errorCreate != nil {

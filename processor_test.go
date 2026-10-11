@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestGroupUpdatesEmptyInput(t *testing.T) {
@@ -319,9 +321,12 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 	}
 
 	post := TelegramPost{
+		Caption:      "Описание товара",
+		MediaGroupID: "media-group-1",
 		Photos: []PhotoSize{
 			{FileID: "telegram-file-id"},
 		},
+		UpdateIDs: []int{101},
 	}
 
 	err := processPost(fake, post, downloadDir)
@@ -329,7 +334,22 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	filePath := filepath.Join(downloadDir, "photo-123.jpg")
+	entries, err := os.ReadDir(downloadDir)
+	if err != nil {
+		t.Fatalf("read download directory: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one post directory, got %d", len(entries))
+	}
+	if !entries[0].IsDir() {
+		t.Fatalf("expected %q to be a directory", entries[0].Name())
+	}
+	if _, err := time.Parse("2006-01-02_15-04-05.000000000", entries[0].Name()); err != nil {
+		t.Fatalf("expected date-time directory name, got %q", entries[0].Name())
+	}
+
+	postDir := filepath.Join(downloadDir, entries[0].Name())
+	filePath := filepath.Join(postDir, "photo-123.jpg")
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -343,5 +363,28 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 			expectedContent,
 			string(content),
 		)
+	}
+
+	postJSON, err := os.ReadFile(filepath.Join(postDir, "post.json"))
+	if err != nil {
+		t.Fatalf("read post JSON: %v", err)
+	}
+
+	var savedPost TelegramPost
+	if err := json.Unmarshal(postJSON, &savedPost); err != nil {
+		t.Fatalf("unmarshal post JSON: %v", err)
+	}
+	if savedPost.Caption != post.Caption {
+		t.Errorf("expected caption %q, got %q", post.Caption, savedPost.Caption)
+	}
+	if savedPost.MediaGroupID != post.MediaGroupID {
+		t.Errorf(
+			"expected media group ID %q, got %q",
+			post.MediaGroupID,
+			savedPost.MediaGroupID,
+		)
+	}
+	if !slices.Equal(savedPost.UpdateIDs, post.UpdateIDs) {
+		t.Errorf("expected update IDs %v, got %v", post.UpdateIDs, savedPost.UpdateIDs)
 	}
 }

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -291,6 +293,41 @@ type fakeTelegramFileClient struct {
 	content []byte
 }
 
+type fakeProductExtractor struct {
+	product ProductExtraction
+	err     error
+	post    TelegramPost
+}
+
+type fakeProductImporter struct {
+	post       TelegramPost
+	product    ProductExtraction
+	imagePaths []string
+	called     bool
+	err        error
+}
+
+func (fake *fakeProductImporter) ImportProduct(
+	ctx context.Context,
+	post TelegramPost,
+	product ProductExtraction,
+	imagePaths []string,
+) (StrapiProduct, bool, error) {
+	fake.called = true
+	fake.post = post
+	fake.product = product
+	fake.imagePaths = append([]string(nil), imagePaths...)
+	return StrapiProduct{DocumentID: "product-document-id"}, true, fake.err
+}
+
+func (fake *fakeProductExtractor) Extract(
+	ctx context.Context,
+	post TelegramPost,
+) (ProductExtraction, error) {
+	fake.post = post
+	return fake.product, fake.err
+}
+
 func (fake fakeTelegramFileClient) getFile(
 	fileID string,
 ) (TelegramResponse[TelegramFile], error) {
@@ -328,8 +365,16 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 		},
 		UpdateIDs: []int{101},
 	}
+	productName := "Твёрдый бальзам"
+	extractor := &fakeProductExtractor{
+		product: ProductExtraction{
+			Name:          &productName,
+			CategorySlugs: []string{"category-6"},
+		},
+	}
+	importer := &fakeProductImporter{}
 
-	err := processPost(fake, post, downloadDir)
+	err := processPost(context.Background(), fake, extractor, importer, post, downloadDir)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -386,5 +431,76 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 	}
 	if !slices.Equal(savedPost.UpdateIDs, post.UpdateIDs) {
 		t.Errorf("expected update IDs %v, got %v", post.UpdateIDs, savedPost.UpdateIDs)
+	}
+
+	productJSON, err := os.ReadFile(filepath.Join(postDir, "product.json"))
+	if err != nil {
+		t.Fatalf("read product JSON: %v", err)
+	}
+
+	var savedProduct ProductExtraction
+	if err := json.Unmarshal(productJSON, &savedProduct); err != nil {
+		t.Fatalf("unmarshal product JSON: %v", err)
+	}
+	if savedProduct.Name == nil || *savedProduct.Name != productName {
+		t.Errorf("expected product name %q, got %#v", productName, savedProduct.Name)
+	}
+	if !slices.Equal(savedProduct.CategorySlugs, []string{"category-6", "category"}) {
+		t.Errorf(
+			"expected category slugs [category-6 category], got %v",
+			savedProduct.CategorySlugs,
+		)
+	}
+	if extractor.post.Caption != post.Caption {
+		t.Errorf(
+			"expected extractor caption %q, got %q",
+			post.Caption,
+			extractor.post.Caption,
+		)
+	}
+	if !importer.called {
+		t.Fatal("expected Strapi importer to be called")
+	}
+	if !slices.Equal(importer.imagePaths, []string{filePath}) {
+		t.Errorf("expected importer image paths [%s], got %v", filePath, importer.imagePaths)
+	}
+	if !slices.Equal(importer.product.CategorySlugs, []string{"category-6", "category"}) {
+		t.Errorf("unexpected imported category slugs: %v", importer.product.CategorySlugs)
+	}
+}
+
+func TestProcessPostRejectsInvalidProductExtraction(t *testing.T) {
+	downloadDir := t.TempDir()
+	emptyName := "   "
+	extractor := &fakeProductExtractor{
+		product: ProductExtraction{Name: &emptyName},
+	}
+
+	err := processPost(
+		context.Background(),
+		fakeTelegramFileClient{},
+		extractor,
+		&fakeProductImporter{},
+		TelegramPost{Text: "Некорректный товар"},
+		downloadDir,
+	)
+	if err == nil {
+		t.Fatal("processPost returned nil, want validation error")
+	}
+	if !strings.Contains(err.Error(), "validate product extraction: product name is empty") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, err := os.ReadDir(downloadDir)
+	if err != nil {
+		t.Fatalf("read download directory: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one post directory, got %d", len(entries))
+	}
+
+	productPath := filepath.Join(downloadDir, entries[0].Name(), "product.json")
+	if _, err := os.Stat(productPath); !os.IsNotExist(err) {
+		t.Fatalf("product.json must not exist after validation error, stat error: %v", err)
 	}
 }

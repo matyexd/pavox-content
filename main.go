@@ -1,22 +1,56 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 func main() {
+	ctx := context.Background()
 	offset := 0
 
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	telegramToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 
-	if token == "" {
-		fmt.Println("Укажите переменную token")
+	if telegramToken == "" {
+		fmt.Println("Укажите переменную TELEGRAM_BOT_TOKEN")
 		return
 	}
 
-	client := TelegramClient{
-		token: token,
+	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
+	if openAIAPIKey == "" {
+		fmt.Println("Укажите переменную OPENAI_API_KEY")
+		return
+	}
+	strapiBaseURL := os.Getenv("STRAPI_BASE_URL")
+	if strapiBaseURL == "" {
+		fmt.Println("Укажите переменную STRAPI_BASE_URL")
+		return
+	}
+	strapiAPIToken := os.Getenv("STRAPI_API_TOKEN")
+	if strapiAPIToken == "" {
+		fmt.Println("Укажите переменную STRAPI_API_TOKEN")
+		return
+	}
+
+	telegramClient := TelegramClient{
+		token: telegramToken,
+	}
+	openAIClient := openai.NewClient(option.WithAPIKey(openAIAPIKey))
+	productExtractor := OpenAIProductExtractor{client: &openAIClient}
+	strapiClient, err := NewStrapiClient(
+		strapiBaseURL,
+		strapiAPIToken,
+		&http.Client{Timeout: 2 * time.Minute},
+	)
+	if err != nil {
+		fmt.Println("Strapi client error:", err)
+		return
 	}
 
 	downloadDir := "downloads"
@@ -28,7 +62,7 @@ func main() {
 	}
 
 	for {
-		telegramResponse, err := client.getUpdates(offset)
+		telegramResponse, err := telegramClient.getUpdates(offset)
 
 		if err != nil {
 			fmt.Println("Telegram request error:", err)
@@ -39,7 +73,14 @@ func main() {
 			telegramResponse.Result,
 			offset,
 			func(post TelegramPost) error {
-				return processPost(&client, post, downloadDir)
+				return processPost(
+					ctx,
+					&telegramClient,
+					productExtractor,
+					strapiClient,
+					post,
+					downloadDir,
+				)
 			},
 		)
 		if processError != nil {

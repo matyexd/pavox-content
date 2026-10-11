@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,23 @@ type TelegramFileClient interface {
 	downloadTelegramFile(file TelegramFile, newFile io.Writer) error
 }
 
-func processPost(client TelegramFileClient, post TelegramPost, downloadDir string) error {
+type ProductImporter interface {
+	ImportProduct(
+		ctx context.Context,
+		post TelegramPost,
+		product ProductExtraction,
+		imagePaths []string,
+	) (StrapiProduct, bool, error)
+}
+
+func processPost(
+	ctx context.Context,
+	telegramClient TelegramFileClient,
+	productExtractor ProductExtractor,
+	productImporter ProductImporter,
+	post TelegramPost,
+	downloadDir string,
+) error {
 	fmt.Printf("Caption: %s \n", post.Caption)
 	fmt.Printf("Text: %s \n", post.Text)
 	fmt.Printf("Count photos: %d \n", len(post.Photos))
@@ -38,12 +55,13 @@ func processPost(client TelegramFileClient, post TelegramPost, downloadDir strin
 		return fmt.Errorf("write post JSON: %w", err)
 	}
 
+	imagePaths := make([]string, 0, len(post.Photos))
 	for index, photo := range post.Photos {
 		fmt.Printf("#%d \n", index+1)
 		fmt.Printf("Width: %d \n", photo.Width)
 		fmt.Printf("Height: %d \n", photo.Height)
 
-		file, errorGetFile := client.getFile(photo.FileID)
+		file, errorGetFile := telegramClient.getFile(photo.FileID)
 		if errorGetFile != nil {
 			return fmt.Errorf("get file: %w", errorGetFile)
 		}
@@ -56,7 +74,7 @@ func processPost(client TelegramFileClient, post TelegramPost, downloadDir strin
 			return fmt.Errorf("create file: %w", errorCreate)
 		}
 
-		downloadError := client.downloadTelegramFile(file.Result, newFile)
+		downloadError := telegramClient.downloadTelegramFile(file.Result, newFile)
 		closeError := newFile.Close()
 
 		if downloadError != nil {
@@ -66,6 +84,43 @@ func processPost(client TelegramFileClient, post TelegramPost, downloadDir strin
 		if closeError != nil {
 			return fmt.Errorf("close file: %w", closeError)
 		}
+
+		imagePaths = append(imagePaths, fileWithDir)
+	}
+
+	product, err := productExtractor.Extract(ctx, post)
+	if err != nil {
+		return fmt.Errorf("extract product with LLM: %w", err)
+	}
+	if err := validateProductExtraction(product); err != nil {
+		return fmt.Errorf("validate product extraction: %w", err)
+	}
+
+	product.CategorySlugs = addParentCategorySlugs(product.CategorySlugs)
+
+	productJSON, err := json.MarshalIndent(product, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal product: %w", err)
+	}
+
+	productFilePath := filepath.Join(postDir, "product.json")
+	if err := os.WriteFile(productFilePath, productJSON, 0640); err != nil {
+		return fmt.Errorf("write product JSON: %w", err)
+	}
+
+	if product.Name == nil {
+		fmt.Println("Publication does not contain a product; skipping Strapi import")
+		return nil
+	}
+
+	published, created, err := productImporter.ImportProduct(ctx, post, product, imagePaths)
+	if err != nil {
+		return fmt.Errorf("import product to Strapi: %w", err)
+	}
+	if created {
+		fmt.Printf("Created and published Strapi product %s\n", published.DocumentID)
+	} else {
+		fmt.Printf("Published existing Strapi product %s\n", published.DocumentID)
 	}
 
 	return nil

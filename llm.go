@@ -48,6 +48,21 @@ type productExtractionInput struct {
 	Text    string `json:"text"`
 }
 
+type ProductExtractor interface {
+	Extract(ctx context.Context, post TelegramPost) (ProductExtraction, error)
+}
+
+type OpenAIProductExtractor struct {
+	client *openai.Client
+}
+
+func (extractor OpenAIProductExtractor) Extract(
+	ctx context.Context,
+	post TelegramPost,
+) (ProductExtraction, error) {
+	return requestLLMHandle(ctx, extractor.client, post)
+}
+
 func productExtractionDeveloperMessage() string {
 	var categories strings.Builder
 	for _, category := range productCategories {

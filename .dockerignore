@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.env
+.env.*
+downloads
+docs
+*.md
+*.log

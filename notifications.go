@@ -8,19 +8,24 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // Notification failures must never retry or abort a product import.
 type PublicationNotifier struct {
-	client  *TelegramClient
-	chatID  string
-	siteURL string
+	client   *TelegramClient
+	chatID   string
+	siteURL  string
+	threadID int
 }
 
-func (client *TelegramClient) sendMessage(ctx context.Context, chatID, text string) error {
+func (client *TelegramClient) sendMessage(ctx context.Context, chatID, text string, threadID int) error {
 	values := url.Values{"chat_id": {chatID}, "text": {text}, "parse_mode": {"HTML"}, "disable_web_page_preview": {"true"}}
+	if threadID > 0 {
+		values.Set("message_thread_id", strconv.Itoa(threadID))
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, telegramAPIBaseURL+"/bot"+client.token+"/sendMessage", strings.NewReader(values.Encode()))
 	if err != nil {
 		return fmt.Errorf("build Telegram notification")
@@ -49,7 +54,7 @@ func (n *PublicationNotifier) send(ctx context.Context, post TelegramPost, statu
 	if detail != "" {
 		text += "\n\n" + detail
 	}
-	if err := n.client.sendMessage(ctx, n.chatID, text); err != nil {
+	if err := n.client.sendMessage(ctx, n.chatID, text, n.threadID); err != nil {
 		fmt.Println("Publication notification:", err)
 	}
 }
@@ -80,6 +85,14 @@ func notificationError(err error) string {
 	runes := []rune(text)
 	if len(runes) > maxRunes {
 		text = string(runes[:maxRunes]) + "…"
+	}
+	return text
+}
+
+func chatIDText(message ChannelPost) string {
+	text := fmt.Sprintf("ID этого чата: <code>%d</code>", message.Chat.ID)
+	if message.MessageThreadID > 0 {
+		text += fmt.Sprintf("\nID топика: <code>%d</code>", message.MessageThreadID)
 	}
 	return text
 }

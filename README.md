@@ -150,3 +150,16 @@ messages identify the stage and include a truncated error with configured creden
 Notification delivery errors do not interrupt publication. Without
 `TELEGRAM_LOG_CHAT_ID`, notifications are disabled. Failed posts are acknowledged without automatic retries so they cannot block later posts.
 After fixing the cause, resend the failed post.
+
+### Forum topics
+
+Send `/chatid@YourBotUsername` inside the desired topic. The reply stays in
+that topic and includes both the group ID and the topic ID. Configure:
+
+```sh
+export TELEGRAM_LOG_CHAT_ID='-1004315915630'
+export TELEGRAM_LOG_THREAD_ID='your-topic-id'
+```
+
+Restart the bot after updating the environment. Leave `TELEGRAM_LOG_THREAD_ID`
+unset for a normal chat or the default destination.

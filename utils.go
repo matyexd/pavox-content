@@ -5,15 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 func telegramRequest[T any](url string) (TelegramResponse[T], error) {
 	var telegramResponse TelegramResponse[T]
 
-	start := time.Now()
 	response, err := http.Get(url)
-	fmt.Println("Request took:", time.Since(start))
 
 	if err != nil {
 		return telegramResponse, err
@@ -44,14 +41,12 @@ func telegramRequest[T any](url string) (TelegramResponse[T], error) {
 }
 
 func telegramRequestBinaryFile(url string, dst io.Writer) error {
-	start := time.Now()
 	response, err := http.Get(url)
 
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
-	fmt.Println("Request took:", time.Since(start))
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf(

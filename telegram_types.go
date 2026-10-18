@@ -17,12 +17,13 @@ type TelegramChat struct {
 }
 
 type ChannelPost struct {
-	Chat         TelegramChat `json:"chat"`
-	MessageID    int          `json:"message_id"`
-	Text         string       `json:"text"`
-	Caption      string       `json:"caption"`
-	Photo        []PhotoSize  `json:"photo"`
-	MediaGroupID string       `json:"media_group_id"`
+	MessageThreadID int          `json:"message_thread_id"`
+	Chat            TelegramChat `json:"chat"`
+	MessageID       int          `json:"message_id"`
+	Text            string       `json:"text"`
+	Caption         string       `json:"caption"`
+	Photo           []PhotoSize  `json:"photo"`
+	MediaGroupID    string       `json:"media_group_id"`
 }
 
 type Update struct {

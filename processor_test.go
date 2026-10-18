@@ -44,7 +44,7 @@ func TestProcessUpdateBatchAdvancesOffsetAfterSuccess(t *testing.T) {
 	}
 }
 
-func TestProcessUpdateBatchPreservesOffsetAfterError(t *testing.T) {
+func TestProcessUpdateBatchContinuesAfterError(t *testing.T) {
 	updates := []Update{
 		{UpdateID: 200, ChannelPost: ChannelPost{Text: "Первый пост"}},
 		{UpdateID: 201, ChannelPost: ChannelPost{Text: "Второй пост"}},
@@ -54,7 +54,7 @@ func TestProcessUpdateBatchPreservesOffsetAfterError(t *testing.T) {
 
 	nextOffset, err := processUpdateBatch(updates, 150, func(post TelegramPost) error {
 		processedPosts++
-		if processedPosts == 2 {
+		if processedPosts == 1 {
 			return expectedError
 		}
 		return nil
@@ -63,8 +63,11 @@ func TestProcessUpdateBatchPreservesOffsetAfterError(t *testing.T) {
 	if !errors.Is(err, expectedError) {
 		t.Fatalf("expected processing error, got %v", err)
 	}
-	if nextOffset != 150 {
-		t.Errorf("expected offset to remain 150, got %d", nextOffset)
+	if nextOffset != 202 {
+		t.Errorf("expected offset 202, got %d", nextOffset)
+	}
+	if processedPosts != 2 {
+		t.Errorf("expected both posts processed, got %d", processedPosts)
 	}
 }
 

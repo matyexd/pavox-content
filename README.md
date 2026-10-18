@@ -129,3 +129,24 @@ docs/                 Technical notes and implementation roadmap
 - a publish failure leaves the draft and its media in Strapi so the next retry can finish publication.
 
 For Telegram-specific implementation details and the roadmap, see [docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md).
+
+## Telegram publication notifications
+
+Set these optional environment variables and restart the service:
+
+```sh
+export TELEGRAM_LOG_CHAT_ID='-1001234567890'
+export SITE_BASE_URL='https://your-site.example'
+```
+
+Add the bot to a separate group and send `/chatid@YourBotUsername` there
+(or `/chatid` in a private conversation). The running bot replies with the
+chat ID; copy it into `TELEGRAM_LOG_CHAT_ID`. Allow the bot to send messages.
+Use a separate log group rather than the source channel.
+
+Notifications cover receipt, processing, publication, failure, and skipped
+non-product posts. Success links use `SITE_BASE_URL/product/{slug}`. Failure
+messages identify the stage and include a truncated error with configured credentials redacted.
+Notification delivery errors do not interrupt publication. Without
+`TELEGRAM_LOG_CHAT_ID`, notifications are disabled. Failed posts are acknowledged without automatic retries so they cannot block later posts.
+After fixing the cause, resend the failed post.

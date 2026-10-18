@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,7 +33,20 @@ func processPost(
 	productImporter ProductImporter,
 	post TelegramPost,
 	downloadDir string,
-) error {
+	notifiers ...*PublicationNotifier,
+) (processErr error) {
+	var notifier *PublicationNotifier
+	if len(notifiers) > 0 {
+		notifier = notifiers[0]
+	}
+	stage := "сохранение поста и фотографий"
+	notifier.send(ctx, post, "📥 Пост получен", "")
+	notifier.send(ctx, post, "⏳ Взят в работу", "")
+	defer func() {
+		if processErr != nil {
+			notifier.send(ctx, post, "❌ Публикация не выполнена", "Этап: "+stage+"\n\n<pre>"+html.EscapeString(notificationError(processErr))+"</pre>\nАвтоповтор отключён. После исправления отправьте пост заново.")
+		}
+	}()
 	fmt.Printf("Caption: %s \n", post.Caption)
 	fmt.Printf("Text: %s \n", post.Text)
 	fmt.Printf("Count photos: %d \n", len(post.Photos))
@@ -88,6 +102,7 @@ func processPost(
 		imagePaths = append(imagePaths, fileWithDir)
 	}
 
+	stage = "извлечение и проверка товара"
 	product, err := productExtractor.Extract(ctx, post)
 	if err != nil {
 		return fmt.Errorf("extract product with LLM: %w", err)
@@ -109,14 +124,17 @@ func processPost(
 	}
 
 	if product.Name == nil {
+		notifier.send(ctx, post, "⏭ Пост пропущен", "В посте не найден товар.")
 		fmt.Println("Publication does not contain a product; skipping Strapi import")
 		return nil
 	}
 
+	stage = "публикация в Strapi"
 	published, created, err := productImporter.ImportProduct(ctx, post, product, imagePaths)
 	if err != nil {
 		return fmt.Errorf("import product to Strapi: %w", err)
 	}
+	notifier.published(ctx, post, published)
 	if created {
 		fmt.Printf("Created and published Strapi product %s\n", published.DocumentID)
 	} else {
@@ -133,6 +151,9 @@ func groupUpdates(updates []Update) []TelegramPost {
 	telegramPosts := make([]TelegramPost, 0)
 
 	for _, post := range updates {
+		if post.ChannelPost.MessageID == 0 && post.ChannelPost.Text == "" && post.ChannelPost.Caption == "" && len(post.ChannelPost.Photo) == 0 {
+			continue
+		}
 		var key string
 		if post.ChannelPost.MediaGroupID == "" {
 			key = "single:" + strconv.Itoa(post.UpdateID)

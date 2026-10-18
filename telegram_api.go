@@ -2,15 +2,16 @@ package main
 
 import (
 	"io"
+	"net/url"
 	"strconv"
 )
 
 const telegramAPIBaseURL string = "https://api.telegram.org"
 
 func (client *TelegramClient) getUpdates(offset int) (TelegramResponse[[]Update], error) {
-	url := telegramAPIBaseURL + "/bot" + client.token + "/getUpdates" + "?offset=" + strconv.Itoa(offset) + "&timeout=30"
+	requestURL := telegramAPIBaseURL + "/bot" + client.token + "/getUpdates" + "?offset=" + strconv.Itoa(offset) + "&timeout=30&allowed_updates=" + url.QueryEscape(`["message","channel_post"]`)
 
-	return telegramRequest[[]Update](url)
+	return telegramRequest[[]Update](requestURL)
 }
 
 func (client *TelegramClient) getFile(fileID string) (TelegramResponse[TelegramFile], error) {

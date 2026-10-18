@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -41,6 +44,7 @@ func main() {
 	telegramClient := TelegramClient{
 		token: telegramToken,
 	}
+	notifier := &PublicationNotifier{client: &telegramClient, chatID: os.Getenv("TELEGRAM_LOG_CHAT_ID"), siteURL: os.Getenv("SITE_BASE_URL")}
 	openAIClient := openai.NewClient(option.WithAPIKey(openAIAPIKey))
 	productExtractor := OpenAIProductExtractor{client: &openAIClient}
 	strapiClient, err := NewStrapiClient(
@@ -69,6 +73,14 @@ func main() {
 			return
 		}
 
+		for _, update := range telegramResponse.Result {
+			message := update.Message
+			if strings.SplitN(message.Text, "@", 2)[0] == "/chatid" && message.Chat.ID != 0 {
+				if err := telegramClient.sendMessage(ctx, strconv.FormatInt(message.Chat.ID, 10), fmt.Sprintf("ID этого чата: <code>%d</code>", message.Chat.ID)); err != nil {
+					fmt.Println("Chat ID reply failed")
+				}
+			}
+		}
 		nextOffset, processError := processUpdateBatch(
 			telegramResponse.Result,
 			offset,
@@ -80,18 +92,15 @@ func main() {
 					strapiClient,
 					post,
 					downloadDir,
+					notifier,
 				)
 			},
 		)
 		if processError != nil {
 			fmt.Println("Process post error:", processError)
-		} else {
-			offset = nextOffset
 		}
+		offset = nextOffset
 
-		if len(telegramResponse.Result) == 0 {
-			fmt.Println("No new posts")
-		}
 	}
 }
 
@@ -107,11 +116,12 @@ func processUpdateBatch(
 		}
 	}
 
+	var failures []error
 	for _, post := range groupUpdates(updates) {
 		if err := process(post); err != nil {
-			return currentOffset, fmt.Errorf("process post: %w", err)
+			failures = append(failures, fmt.Errorf("process post %v: %w", post.UpdateIDs, err))
 		}
 	}
 
-	return candidateOffset, nil
+	return candidateOffset, errors.Join(failures...)
 }

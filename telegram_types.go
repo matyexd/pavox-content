@@ -12,16 +12,22 @@ type PhotoSize struct {
 	Height       int    `json:"height"`
 }
 
+type TelegramChat struct {
+	ID int64 `json:"id"`
+}
+
 type ChannelPost struct {
-	MessageID    int         `json:"message_id"`
-	Text         string      `json:"text"`
-	Caption      string      `json:"caption"`
-	Photo        []PhotoSize `json:"photo"`
-	MediaGroupID string      `json:"media_group_id"`
+	Chat         TelegramChat `json:"chat"`
+	MessageID    int          `json:"message_id"`
+	Text         string       `json:"text"`
+	Caption      string       `json:"caption"`
+	Photo        []PhotoSize  `json:"photo"`
+	MediaGroupID string       `json:"media_group_id"`
 }
 
 type Update struct {
 	UpdateID    int         `json:"update_id"`
+	Message     ChannelPost `json:"message"`
 	ChannelPost ChannelPost `json:"channel_post"`
 }
 

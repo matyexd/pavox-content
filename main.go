@@ -80,8 +80,13 @@ func main() {
 		return
 	}
 
+	buffer := &albumBuffer{}
 	for {
-		telegramResponse, err := telegramClient.getUpdates(offset)
+		timeout := 30
+		if len(buffer.albums) > 0 {
+			timeout = 1
+		}
+		telegramResponse, err := telegramClient.getUpdatesWithTimeout(offset, timeout)
 
 		if err != nil {
 			fmt.Println("Telegram request error:", err)
@@ -96,8 +101,20 @@ func main() {
 				}
 			}
 		}
+		// Do not confirm buffered album parts until they have been processed.
+		candidateOffset := offset
+		allowedUpdates := make([]Update, 0, len(telegramResponse.Result))
+		for _, update := range telegramResponse.Result {
+			if update.UpdateID+1 > candidateOffset {
+				candidateOffset = update.UpdateID + 1
+			}
+			if allowedChannels[update.ChannelPost.Chat.ID] {
+				allowedUpdates = append(allowedUpdates, update)
+			}
+		}
+		ready := buffer.collect(allowedUpdates, time.Now())
 		nextOffset, processError := processUpdateBatch(
-			telegramResponse.Result,
+			ready,
 			offset,
 			allowedChannels,
 			func(post TelegramPost) error {
@@ -115,7 +132,13 @@ func main() {
 		if processError != nil {
 			fmt.Println("Process post error:", processError)
 		}
-		offset = nextOffset
+		if candidateOffset > nextOffset {
+			nextOffset = candidateOffset
+		}
+		offset = buffer.confirmedOffset(nextOffset)
+		if len(buffer.albums) > 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
 
 	}
 }

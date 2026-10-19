@@ -175,7 +175,7 @@ func groupUpdates(updates []Update) []TelegramPost {
 		telegramPost.MediaGroupID = groupPosts[0].ChannelPost.MediaGroupID
 
 		for _, post := range groupPosts {
-			if len(post.ChannelPost.Photo) > 0 {
+			if len(post.ChannelPost.Photo) > 0 && len(telegramPost.Photos) < maxProductPhotos {
 				telegramPost.Photos = append(telegramPost.Photos, post.ChannelPost.Photo[len(post.ChannelPost.Photo)-1])
 			}
 			telegramPost.UpdateIDs = append(telegramPost.UpdateIDs, post.UpdateID)

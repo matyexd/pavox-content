@@ -54,6 +54,9 @@ type StrapiProduct struct {
 }
 
 func telegramSourceID(post TelegramPost) (string, error) {
+	if post.MediaGroupID != "" && post.ChatID != 0 {
+		return fmt.Sprintf("telegram:album:%d:%s", post.ChatID, post.MediaGroupID), nil
+	}
 	if len(post.UpdateIDs) == 0 {
 		return "", fmt.Errorf("Telegram post has no update IDs")
 	}

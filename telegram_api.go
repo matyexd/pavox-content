@@ -9,7 +9,11 @@ import (
 const telegramAPIBaseURL string = "https://api.telegram.org"
 
 func (client *TelegramClient) getUpdates(offset int) (TelegramResponse[[]Update], error) {
-	requestURL := telegramAPIBaseURL + "/bot" + client.token + "/getUpdates" + "?offset=" + strconv.Itoa(offset) + "&timeout=30&allowed_updates=" + url.QueryEscape(`["message","channel_post"]`)
+	return client.getUpdatesWithTimeout(offset, 30)
+}
+
+func (client *TelegramClient) getUpdatesWithTimeout(offset, timeout int) (TelegramResponse[[]Update], error) {
+	requestURL := telegramAPIBaseURL + "/bot" + client.token + "/getUpdates" + "?offset=" + strconv.Itoa(offset) + "&timeout=" + strconv.Itoa(timeout) + "&allowed_updates=" + url.QueryEscape(`["message","channel_post"]`)
 
 	return telegramRequest[[]Update](requestURL)
 }

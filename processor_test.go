@@ -23,12 +23,12 @@ func TestGroupUpdatesEmptyInput(t *testing.T) {
 
 func TestProcessUpdateBatchAdvancesOffsetAfterSuccess(t *testing.T) {
 	updates := []Update{
-		{UpdateID: 105, ChannelPost: ChannelPost{Text: "Первый пост"}},
-		{UpdateID: 103, ChannelPost: ChannelPost{Text: "Второй пост"}},
+		{UpdateID: 105, ChannelPost: ChannelPost{Chat: TelegramChat{ID: -100123}, Text: "Первый пост"}},
+		{UpdateID: 103, ChannelPost: ChannelPost{Chat: TelegramChat{ID: -100123}, Text: "Второй пост"}},
 	}
 	processedPosts := 0
 
-	nextOffset, err := processUpdateBatch(updates, 100, func(post TelegramPost) error {
+	nextOffset, err := processUpdateBatch(updates, 100, map[int64]bool{-100123: true}, func(post TelegramPost) error {
 		processedPosts++
 		return nil
 	})
@@ -46,13 +46,13 @@ func TestProcessUpdateBatchAdvancesOffsetAfterSuccess(t *testing.T) {
 
 func TestProcessUpdateBatchContinuesAfterError(t *testing.T) {
 	updates := []Update{
-		{UpdateID: 200, ChannelPost: ChannelPost{Text: "Первый пост"}},
-		{UpdateID: 201, ChannelPost: ChannelPost{Text: "Второй пост"}},
+		{UpdateID: 200, ChannelPost: ChannelPost{Chat: TelegramChat{ID: -100123}, Text: "Первый пост"}},
+		{UpdateID: 201, ChannelPost: ChannelPost{Chat: TelegramChat{ID: -100123}, Text: "Второй пост"}},
 	}
 	expectedError := errors.New("processing failed")
 	processedPosts := 0
 
-	nextOffset, err := processUpdateBatch(updates, 150, func(post TelegramPost) error {
+	nextOffset, err := processUpdateBatch(updates, 150, map[int64]bool{-100123: true}, func(post TelegramPost) error {
 		processedPosts++
 		if processedPosts == 1 {
 			return expectedError
@@ -361,6 +361,7 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 	}
 
 	post := TelegramPost{
+		ChatID:       -100123,
 		Caption:      "Описание товара",
 		MediaGroupID: "media-group-1",
 		Photos: []PhotoSize{
@@ -421,6 +422,9 @@ func TestProcessPostDownloadsPhoto(t *testing.T) {
 	var savedPost TelegramPost
 	if err := json.Unmarshal(postJSON, &savedPost); err != nil {
 		t.Fatalf("unmarshal post JSON: %v", err)
+	}
+	if savedPost.ChatID != post.ChatID {
+		t.Errorf("expected saved chat ID %d, got %d", post.ChatID, savedPost.ChatID)
 	}
 	if savedPost.Caption != post.Caption {
 		t.Errorf("expected caption %q, got %q", post.Caption, savedPost.Caption)

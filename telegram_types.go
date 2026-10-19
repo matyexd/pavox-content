@@ -47,6 +47,7 @@ type TelegramResponse[T any] struct {
 }
 
 type TelegramPost struct {
+	ChatID       int64       `json:"chat_id"`
 	Caption      string      `json:"caption"`
 	MediaGroupID string      `json:"media_group_id"`
 	Photos       []PhotoSize `json:"photos"`

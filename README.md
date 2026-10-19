@@ -60,10 +60,13 @@ Create a local `.env` file in the project root:
 
 ```sh
 export TELEGRAM_BOT_TOKEN='your-telegram-bot-token'
+export TELEGRAM_ALLOWED_CHANNEL_IDS='-1001234567890,-1009876543210'
 export OPENAI_API_KEY='your-openai-api-key'
 export STRAPI_BASE_URL='http://localhost:1337'
 export STRAPI_API_TOKEN='your-strapi-api-token'
 ```
+
+Set `TELEGRAM_ALLOWED_CHANNEL_IDS` to the comma-separated numeric IDs of production source channels. The service refuses to start if this setting is empty or invalid. Posts from other channels are acknowledged and skipped before file downloads, LLM extraction, notifications, or Strapi writes. Source IDs are saved as `chat_id` in `post.json`; albums are grouped separately per channel.
 
 Load it into the current shell session:
 

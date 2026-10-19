@@ -158,7 +158,7 @@ func groupUpdates(updates []Update) []TelegramPost {
 		if post.ChannelPost.MediaGroupID == "" {
 			key = "single:" + strconv.Itoa(post.UpdateID)
 		} else {
-			key = post.ChannelPost.MediaGroupID
+			key = "album:" + strconv.FormatInt(post.ChannelPost.Chat.ID, 10) + ":" + post.ChannelPost.MediaGroupID
 		}
 
 		if _, exists := posts[key]; !exists {
@@ -171,6 +171,7 @@ func groupUpdates(updates []Update) []TelegramPost {
 	for _, key := range order {
 		var telegramPost TelegramPost
 		groupPosts := posts[key]
+		telegramPost.ChatID = groupPosts[0].ChannelPost.Chat.ID
 		telegramPost.MediaGroupID = groupPosts[0].ChannelPost.MediaGroupID
 
 		for _, post := range groupPosts {

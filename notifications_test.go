@@ -16,7 +16,7 @@ func TestGroupUpdatesIgnoresChatCommands(t *testing.T) {
 	if len(posts) != 1 || posts[0].Text != "Товар" {
 		t.Fatalf("unexpected posts: %+v", posts)
 	}
-	next, err := processUpdateBatch(updates[:1], 0, func(TelegramPost) error {
+	next, err := processUpdateBatch(updates[:1], 0, map[int64]bool{-100123: true}, func(TelegramPost) error {
 		t.Fatal("chat command must not be imported")
 		return nil
 	})

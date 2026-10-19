@@ -25,6 +25,12 @@ func main() {
 		return
 	}
 
+	allowedChannels, err := parseAllowedChannelIDs(os.Getenv("TELEGRAM_ALLOWED_CHANNEL_IDS"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
 	if openAIAPIKey == "" {
 		fmt.Println("Укажите переменную OPENAI_API_KEY")
@@ -93,6 +99,7 @@ func main() {
 		nextOffset, processError := processUpdateBatch(
 			telegramResponse.Result,
 			offset,
+			allowedChannels,
 			func(post TelegramPost) error {
 				return processPost(
 					ctx,
@@ -116,6 +123,7 @@ func main() {
 func processUpdateBatch(
 	updates []Update,
 	currentOffset int,
+	allowedChannels map[int64]bool,
 	process func(TelegramPost) error,
 ) (int, error) {
 	candidateOffset := currentOffset
@@ -125,12 +133,34 @@ func processUpdateBatch(
 		}
 	}
 
+	// Filter before grouping so rejected album parts cannot enter an allowed post.
+	allowedUpdates := make([]Update, 0, len(updates))
+	for _, update := range updates {
+		id := update.ChannelPost.Chat.ID
+		if id < 0 && allowedChannels[id] {
+			allowedUpdates = append(allowedUpdates, update)
+		}
+	}
+
 	var failures []error
-	for _, post := range groupUpdates(updates) {
+	for _, post := range groupUpdates(allowedUpdates) {
 		if err := process(post); err != nil {
 			failures = append(failures, fmt.Errorf("process post %v: %w", post.UpdateIDs, err))
 		}
 	}
 
 	return candidateOffset, errors.Join(failures...)
+}
+
+// An absent or malformed allowlist must never enable unrestricted publication.
+func parseAllowedChannelIDs(value string) (map[int64]bool, error) {
+	allowed := make(map[int64]bool)
+	for _, part := range strings.Split(value, ",") {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id >= 0 {
+			return nil, fmt.Errorf("TELEGRAM_ALLOWED_CHANNEL_IDS должен содержать ID каналов (отрицательные числа), разделённые запятыми")
+		}
+		allowed[id] = true
+	}
+	return allowed, nil
 }

@@ -52,3 +52,27 @@ func TestInvalidVariantExtraction(t *testing.T) {
 		}
 	}
 }
+
+func TestSingleSizeResponseIncludesVariant(t *testing.T) {
+	for _, raw := range []string{
+		`{"name":"Шампунь","volume_ml":250,"price":1300}`,
+		`{"name":"Шампунь","volume_ml":250,"price":1300,"variants":[]}`,
+		`{"name":"Шампунь","variants":[{"weight_grams":null,"volume_ml":250,"price":1300}]}`,
+	} {
+		product, err := responseLLMHandle(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(product.Variants) != 1 {
+			t.Fatalf("single size missing from saved extraction: %#v", product)
+		}
+		input := strapiProductInput(TelegramPost{UpdateIDs: []int{831507937}}, product, "telegram:831507937", nil, nil)
+		if len(input.Variants) != 1 {
+			t.Fatalf("single size missing from import: %#v", input)
+		}
+		variant := input.Variants[0]
+		if variant.VolumeMl == nil || *variant.VolumeMl != 250 || variant.Price == nil || *variant.Price != 1300 || variant.WeightGrams != nil {
+			t.Fatalf("wrong shampoo variant: %#v", variant)
+		}
+	}
+}

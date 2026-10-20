@@ -78,6 +78,19 @@ func TestProductExtractionRequest(t *testing.T) {
 		t.Errorf("name type = %#v, want [string null]", nameSchema["type"])
 	}
 
+	volume := properties["volume_ml"].(map[string]any)
+	if !reflect.DeepEqual(volume["type"], []any{"integer", "null"}) {
+		t.Fatalf("invalid volume schema: %#v", volume)
+	}
+	variants := properties["variants"].(map[string]any)
+	variant := variants["items"].(map[string]any)
+	if variants["type"] != "array" || variant["additionalProperties"] != false {
+		t.Fatal("variants must use strict objects")
+	}
+	if !reflect.DeepEqual(variant["required"], []any{"weight_grams", "volume_ml", "price"}) {
+		t.Fatal("each size must have its own nullable price and units")
+	}
+
 	categorySchema := properties["category_slugs"].(map[string]any)
 	items := categorySchema["items"].(map[string]any)
 	wantSlugs := make([]any, 0, len(productCategories))

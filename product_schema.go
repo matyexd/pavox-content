@@ -28,6 +28,24 @@ func productExtractionSchema() map[string]any {
 				"type":        []string{"integer", "null"},
 				"description": "Product weight in grams, or null when it is not present in the source.",
 			},
+			"volume_ml": map[string]any{
+				"type":        []string{"integer", "null"},
+				"description": "Explicit volume in millilitres for a single size only; never convert ml to grams.",
+			},
+			"variants": map[string]any{
+				"type":        "array",
+				"description": "All explicitly offered sizes of the main product, each with its own price. Empty if neither price nor size is stated.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"weight_grams": map[string]any{"type": []string{"integer", "null"}},
+						"volume_ml":    map[string]any{"type": []string{"integer", "null"}},
+						"price":        map[string]any{"type": []string{"integer", "null"}},
+					},
+					"required":             []string{"weight_grams", "volume_ml", "price"},
+					"additionalProperties": false,
+				},
+			},
 			"category_slugs": map[string]any{
 				"type":        "array",
 				"description": "Category slugs selected from the allowed categories supplied in the prompt.",
@@ -44,6 +62,8 @@ func productExtractionSchema() map[string]any {
 			"method_application",
 			"price",
 			"weight_grams",
+			"volume_ml",
+			"variants",
 			"category_slugs",
 		},
 		"additionalProperties": false,

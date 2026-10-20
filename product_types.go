@@ -1,13 +1,15 @@
 package main
 
 type ProductExtraction struct {
-	Name              *string  `json:"name"`
-	Description       *string  `json:"description"`
-	Compound          *string  `json:"compound"`
-	MethodApplication *string  `json:"method_application"`
-	Price             *int     `json:"price"`
-	WeightGrams       *int     `json:"weight_grams"`
-	CategorySlugs     []string `json:"category_slugs"`
+	Name              *string                    `json:"name"`
+	Description       *string                    `json:"description"`
+	Compound          *string                    `json:"compound"`
+	MethodApplication *string                    `json:"method_application"`
+	Price             *int                       `json:"price"`
+	WeightGrams       *int                       `json:"weight_grams"`
+	VolumeMl          *int                       `json:"volume_ml"`
+	Variants          []ProductVariantExtraction `json:"variants"`
+	CategorySlugs     []string                   `json:"category_slugs"`
 }
 
 type ProductCategory struct {
@@ -34,4 +36,21 @@ func productCategorySlugs() []string {
 	}
 
 	return slugs
+}
+
+// Each price belongs to its explicit size; grams and millilitres are never interchangeable.
+type ProductVariantExtraction struct {
+	WeightGrams *int `json:"weight_grams"`
+	VolumeMl    *int `json:"volume_ml"`
+	Price       *int `json:"price"`
+}
+
+func (product ProductExtraction) ImportVariants() []ProductVariantExtraction {
+	if len(product.Variants) > 0 {
+		return product.Variants
+	}
+	if product.Price == nil && product.WeightGrams == nil && product.VolumeMl == nil {
+		return []ProductVariantExtraction{}
+	}
+	return []ProductVariantExtraction{{WeightGrams: product.WeightGrams, VolumeMl: product.VolumeMl, Price: product.Price}}
 }

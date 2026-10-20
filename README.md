@@ -166,3 +166,48 @@ export TELEGRAM_LOG_THREAD_ID='your-topic-id'
 
 Restart the bot after updating the environment. Leave `TELEGRAM_LOG_THREAD_ID`
 unset for a normal chat or the default destination.
+
+## Product variants import (v2)
+
+Deploy the backend with `POST /api/internal/catalog/telegram-import` before this bot.
+There is no fallback to legacy product price writes. For existing products run the
+baseline catalog migration before resuming imports. The frontend v2 build flag
+is independent of this importer endpoint.
+
+Grant the bot's custom Strapi API token the `product / telegram-import / importProduct`
+action (`api::product.telegram-import.importProduct`), product `find`, category
+`find`, and the existing upload permissions. Public/Authenticated storefront roles
+and read-only API tokens cannot use this import endpoint. Never expose it publicly
+by disabling authentication.
+
+Extraction includes `volume_ml` and `variants`: each size has its own `price`,
+`weight_grams`, and `volume_ml`. Grams and millilitres are distinct; absent values
+stay null. The prompt covers г/гр/g, мл/ml, explicit kilograms/litres, and excludes
+ingredient quantities and application doses. Missing prices are never invented.
+Top-level single-size fields remain for compatibility with saved extractions;
+multiple sizes use the array. New writes send commercial data only inside variants.
+
+The backend creates a product and its SKU(s) in one transaction, including v1
+mapping for a newly priced product. Re-import of the SAME telegramSourceId updates
+exact-size SKU prices and keeps SKU identity, availability, activation and editorial
+content. It does not publish unrelated draft edits or upload photos again.
+Absorbed legacy source cards resolve to their canonical product via migration mapping.
+Existing unpublished products require review (import_product_unpublished_review).
+The first SKU of a new product is active; additional sizes are saved inactive for
+review/activation after the v1 compatibility window. Unknown legacy sizes require
+an audited correction; the importer returns import_size_requires_review rather
+than guessing or rewriting an existing SKU size. Existing unbaselined products
+return import_requires_baseline_migration. Size-less or ambiguous extraction must
+not overwrite a known-size price. A new post/source is not matched by product name.
+
+Price updates replace price/currentPrice with the explicit RUB price and clear
+oldPrice. Missing-price entries preserve existing prices; new entries without a
+price do not create sellable SKUs. Already inactive SKUs are never reactivated.
+Products with no priced SKU remain unavailable. After a timeout/error from the
+transactional import, uploaded media are retained because the transaction may have
+committed; remove confirmed orphaned uploads separately. No production notifications,
+LLM calls or writes to a real Strapi are made by the normal test suite.
+
+Run `go test -race ./...` and `go vet ./...`. Backend integration coverage is
+`npm run test:telegram-import` in vox-backend (disposable SQLite; real PostgreSQL
+concurrency remains a separate pre-release check).

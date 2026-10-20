@@ -10,6 +10,31 @@ func validateProductExtraction(product ProductExtraction) error {
 		return fmt.Errorf("product name is empty")
 	}
 
+	if len(product.Variants) > 30 {
+		return fmt.Errorf("too many product variants")
+	}
+	seen := make(map[string]bool)
+	for _, variant := range product.ImportVariants() {
+		for _, size := range []*int{variant.WeightGrams, variant.VolumeMl} {
+			if size != nil && (*size <= 0 || *size > 2147483647) {
+				return fmt.Errorf("invalid product size")
+			}
+		}
+		if variant.Price != nil && (*variant.Price < 0 || *variant.Price > 2147483647) {
+			return fmt.Errorf("invalid product price")
+		}
+		sizeKey := func(value *int) string {
+			if value == nil {
+				return "null"
+			}
+			return fmt.Sprint(*value)
+		}
+		key := sizeKey(variant.WeightGrams) + ":" + sizeKey(variant.VolumeMl)
+		if seen[key] {
+			return fmt.Errorf("duplicate product variant size")
+		}
+		seen[key] = true
+	}
 	allowedCategorySlugs := make(map[string]struct{}, len(productCategories))
 	for _, category := range productCategories {
 		allowedCategorySlugs[category.Slug] = struct{}{}

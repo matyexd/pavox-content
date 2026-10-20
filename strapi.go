@@ -26,16 +26,18 @@ type StrapiCategory struct {
 }
 
 type StrapiProductInput struct {
-	Name              string       `json:"name"`
-	Slug              string       `json:"slug"`
-	TelegramSourceID  string       `json:"telegramSourceId"`
-	Description       *string      `json:"description,omitempty"`
-	Compound          *string      `json:"compound,omitempty"`
-	MethodApplication *string      `json:"method_application,omitempty"`
-	Price             *StrapiPrice `json:"price,omitempty"`
-	WeightGrams       *int         `json:"weightGrams,omitempty"`
-	Categories        []int        `json:"categories,omitempty"`
-	Media             []int        `json:"media,omitempty"`
+	Name              string               `json:"name"`
+	Slug              string               `json:"slug"`
+	TelegramSourceID  string               `json:"telegramSourceId"`
+	Description       *string              `json:"description,omitempty"`
+	Compound          *string              `json:"compound,omitempty"`
+	MethodApplication *string              `json:"method_application,omitempty"`
+	Price             *StrapiPrice         `json:"price,omitempty"`
+	WeightGrams       *int                 `json:"weightGrams,omitempty"`
+	VolumeMl          *int                 `json:"volumeMl,omitempty"`
+	Variants          []StrapiVariantInput `json:"variants"`
+	Categories        []int                `json:"categories,omitempty"`
+	Media             []int                `json:"media,omitempty"`
 }
 
 type StrapiPrice struct {
@@ -278,4 +280,29 @@ func (client *StrapiClient) doJSON(
 	}
 
 	return nil
+}
+
+type StrapiVariantInput struct {
+	WeightGrams *int `json:"weightGrams"`
+	VolumeMl    *int `json:"volumeMl"`
+	Price       *int `json:"price"`
+}
+
+func (client *StrapiClient) ImportCatalogProduct(ctx context.Context, input StrapiProductInput) (StrapiProduct, bool, error) {
+	var response struct {
+		Data    StrapiProduct `json:"data"`
+		Created bool          `json:"created"`
+	}
+	err := client.doJSON(ctx, http.MethodPost, "/api/internal/catalog/telegram-import", map[string]any{"data": map[string]any{
+		"name": input.Name, "slug": input.Slug, "telegramSourceId": input.TelegramSourceID,
+		"description": input.Description, "compound": input.Compound, "method_application": input.MethodApplication,
+		"categories": input.Categories, "media": input.Media, "variants": input.Variants,
+	}}, &response)
+	if err != nil {
+		return StrapiProduct{}, false, fmt.Errorf("import catalog SKU: %w", err)
+	}
+	if response.Data.DocumentID == "" {
+		return StrapiProduct{}, false, fmt.Errorf("import catalog SKU: missing documentId")
+	}
+	return response.Data, response.Created, nil
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -36,45 +35,23 @@ func (client *StrapiClient) ImportProduct(
 	if err != nil {
 		return StrapiProduct{}, false, err
 	}
-	if existing != nil {
-		published, err := client.PublishProduct(ctx, existing.DocumentID)
-		if err != nil {
-			return StrapiProduct{}, false, fmt.Errorf(
-				"publish existing Strapi product %q: %w",
-				existing.DocumentID,
-				err,
-			)
-		}
-		return published, false, nil
+	if err := validateProductExtraction(product); err != nil {
+		return StrapiProduct{}, false, err
 	}
-
+	// Repeated imports update SKU prices without re-uploading images or replacing editorial content.
+	if existing != nil {
+		return client.ImportCatalogProduct(ctx, strapiProductInput(post, product, sourceID, nil, nil))
+	}
 	categoryIDs, err := client.CategoryIDsBySlugs(ctx, product.CategorySlugs)
 	if err != nil {
 		return StrapiProduct{}, false, err
 	}
-
 	mediaFiles, err := client.UploadFiles(ctx, imagePaths)
 	if err != nil {
 		return StrapiProduct{}, false, err
 	}
-
-	input := strapiProductInput(post, product, sourceID, categoryIDs, mediaFiles)
-	draft, err := client.CreateProductDraft(ctx, input)
-	if err != nil {
-		cleanupErr := client.deleteMediaFiles(ctx, mediaFiles)
-		return StrapiProduct{}, false, errors.Join(err, cleanupErr)
-	}
-
-	published, err := client.PublishProduct(ctx, draft.DocumentID)
-	if err != nil {
-		return StrapiProduct{}, true, fmt.Errorf(
-			"publish new Strapi product %q: %w",
-			draft.DocumentID,
-			err,
-		)
-	}
-
-	return published, true, nil
+	// An HTTP failure can follow a successful commit. Never delete media here: it may already be attached.
+	return client.ImportCatalogProduct(ctx, strapiProductInput(post, product, sourceID, categoryIDs, mediaFiles))
 }
 
 func strapiProductInput(
@@ -98,6 +75,10 @@ func strapiProductInput(
 		}
 	}
 
+	variants := make([]StrapiVariantInput, 0)
+	for _, variant := range product.ImportVariants() {
+		variants = append(variants, StrapiVariantInput{WeightGrams: variant.WeightGrams, VolumeMl: variant.VolumeMl, Price: variant.Price})
+	}
 	name := strings.TrimSpace(*product.Name)
 	return StrapiProductInput{
 		Name:              name,
@@ -108,6 +89,8 @@ func strapiProductInput(
 		MethodApplication: product.MethodApplication,
 		Price:             price,
 		WeightGrams:       product.WeightGrams,
+		VolumeMl:          product.VolumeMl,
+		Variants:          variants,
 		Categories:        categoryIDs,
 		Media:             mediaIDs,
 	}
